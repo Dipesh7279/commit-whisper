@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Commit Whisper turns git diffs into clear, reviewable commit messages with open-source AI">
+  <title>Commit Whisper — Make every change explainable</title>
+  <style>
+    :root { --ink:#e9f0ed; --muted:#94a8a1; --line:#bcdccf24; --green:#93f5bd; --teal:#64d8cb; --bg:#091210; --danger:#ff9b8e; }
+    * { box-sizing:border-box; }
+    body { margin:0; min-height:100vh; color:var(--ink); background:radial-gradient(circle at 80% 0%,#183b33 0,transparent 34rem),radial-gradient(circle at 0 100%,#142b29 0,transparent 30rem),var(--bg); font-family:Inter,ui-sans-serif,system-ui,-apple-system,Segoe UI,sans-serif; }
+    .wrap { width:min(1180px,calc(100% - 40px)); margin:auto; }
+    nav { height:82px; display:flex; align-items:center; justify-content:space-between; border-bottom:1px solid var(--line); }
+    .brand { display:flex; gap:11px; align-items:center; font-weight:750; letter-spacing:-.03em; font-size:18px; }
+    .mark { display:grid; place-items:center; width:31px; height:31px; border-radius:10px; color:#092018; background:linear-gradient(135deg,var(--green),var(--teal)); box-shadow:0 0 24px #70e9bd45; }
+    .nav-note { color:var(--muted); font-size:13px; display:flex; gap:8px; align-items:center; }
+    .dot { width:7px; height:7px; background:var(--green); border-radius:99px; box-shadow:0 0 10px var(--green); }
+    .hero { padding:70px 0 40px; max-width:800px; }
+    .eyebrow { color:var(--green); text-transform:uppercase; letter-spacing:.16em; font-size:11px; font-weight:800; }
+    h1 { font-size:clamp(42px,7vw,78px); letter-spacing:-.075em; line-height:.94; margin:18px 0 22px; max-width:780px; }
+    h1 span { color:var(--green); }
+    .hero p { color:var(--muted); font-size:18px; line-height:1.6; max-width:670px; margin:0; }
+    .ai-proof { display:flex; flex-wrap:wrap; gap:8px; margin-top:24px; }
+    .proof { color:#bfe8d1; border:1px solid #84e9b43b; background:#83e7b40d; border-radius:99px; padding:7px 10px; font-size:12px; }
+    .workspace { display:grid; grid-template-columns:1fr 1fr; gap:18px; padding:25px 0 70px; }
+    .panel { border:1px solid var(--line); border-radius:20px; background:#131f1dcc; backdrop-filter:blur(18px); box-shadow:0 20px 60px #0003; overflow:hidden; }
+    .panel-head { display:flex; justify-content:space-between; align-items:center; padding:20px 22px 14px; }
+    .panel-title { font-size:14px; font-weight:750; }
+    .hint { font-size:12px; color:var(--muted); }
+    textarea { display:block; width:calc(100% - 44px); margin:0 22px 18px; min-height:320px; resize:vertical; border:1px solid var(--line); border-radius:13px; padding:17px; background:#07100e; color:#cfe1d9; font:13px/1.6 ui-monospace,SFMono-Regular,Menlo,monospace; outline:none; }
+    textarea:focus, select:focus, button:focus-visible { border-color:#6fe0ad88; box-shadow:0 0 0 3px #6fe0ad25; outline:none; }
+    .controls { display:flex; gap:10px; padding:0 22px 16px; align-items:center; }
+    select, button { border:1px solid var(--line); border-radius:10px; padding:11px 14px; color:var(--ink); background:#10211d; font:600 13px inherit; cursor:pointer; }
+    select { flex:1; color:#bdd0c8; }
+    button.primary { background:linear-gradient(135deg,#9cf8c0,#57d1c2); color:#062016; border:0; box-shadow:0 8px 20px #64dfb340; }
+    button:hover { transform:translateY(-1px); filter:brightness(1.08); }
+    button:disabled { opacity:.6; cursor:wait; transform:none; }
+    .mode-help { min-height:37px; padding:0 22px 17px; color:var(--muted); font-size:12px; line-height:1.45; }
+    .output { padding:0 22px 22px; min-height:424px; }
+    .empty { min-height:360px; display:grid; place-items:center; text-align:center; color:var(--muted); border:1px dashed #9cbab029; border-radius:13px; padding:30px; }
+    .empty strong { display:block; color:#cfe1d9; font-size:16px; margin-bottom:8px; }
+    .result { display:none; }
+    .result.show { display:block; animation:fade .4s ease; }
+    @keyframes fade { from{opacity:0;transform:translateY(6px)} to{opacity:1;transform:none} }
+    .commit { font:700 19px/1.35 ui-monospace,SFMono-Regular,Menlo,monospace; color:var(--green); margin:4px 0 18px; overflow-wrap:anywhere; }
+    .result-label { color:var(--muted); font-size:11px; text-transform:uppercase; letter-spacing:.12em; font-weight:800; margin:18px 0 8px; }
+    .result-text { color:#c5d6cf; line-height:1.5; font-size:14px; }
+    .chips { display:flex; flex-wrap:wrap; gap:7px; }
+    .chip { font-size:12px; color:#bfe8d1; border:1px solid #84e9b43b; background:#83e7b40d; border-radius:99px; padding:6px 9px; }
+    .error { display:none; color:var(--danger); background:#ff9b8e12; border:1px solid #ff9b8e33; border-radius:10px; padding:10px 12px; margin:0 22px 17px; font-size:12px; line-height:1.45; }
+    .error.show { display:block; }
+    .sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip:rect(0,0,0,0); white-space:nowrap; border:0; }
+    .footer { display:flex; justify-content:space-between; padding:22px 0 40px; color:var(--muted); font-size:12px; border-top:1px solid var(--line); }
+    @media(max-width:760px) { .wrap{width:min(100% - 26px,600px)} .workspace{grid-template-columns:1fr} .hero{padding-top:50px} .nav-note{display:none} .controls{flex-direction:column;align-items:stretch} select,button{width:100%} .footer{gap:12px;flex-direction:column} }
+    @media(prefers-reduced-motion:reduce) { *,*:before,*:after { animation-duration:.01ms!important; transition-duration:.01ms!important; } }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <nav aria-label="Primary"><div class="brand"><div class="mark" aria-hidden="true">⌁</div> commit whisper</div><div class="nav-note"><i class="dot" aria-hidden="true"></i> local-first · open source</div></nav>
+    <main>
+      <section class="hero"><div class="eyebrow">Explainable changes for every team</div><h1>Turn code changes into <span>clarity.</span></h1><p>Paste a git diff. Get a precise conventional commit, a release note, and the one thing a reviewer should double-check — powered by an open-weight model you can run yourself.</p><div class="ai-proof" aria-label="AI capabilities"><span class="proof">✦ open-weight AI</span><span class="proof">⌘ conventional commits</span><span class="proof">◉ review-aware</span></div></section>
+      <section class="workspace" aria-label="Commit analysis workspace">
+        <div class="panel"><div class="panel-head"><div class="panel-title">Your git diff</div><div class="hint">Ctrl + Enter to whisper</div></div><label for="diff" class="sr-only">Paste a git diff</label><textarea id="diff" spellcheck="false" aria-describedby="diff-help"></textarea><div class="controls"><label for="model" class="sr-only">AI mode</label><select id="model"><option value="demo">Demo mode (no setup)</option><option value="qwen2.5-coder:1.5b-base">Ollama · Qwen 2.5 Coder 1.5B (installed)</option><option value="llama3.2">Ollama · llama3.2</option></select><button class="primary" id="generate" type="button">✦ Whisper this diff</button></div><div class="mode-help" id="diff-help">Demo mode is instant and judge-ready. Local modes send the diff only to your Ollama model.</div><div class="error" id="error" role="alert"></div></div>
+        <div class="panel"><div class="panel-head"><div class="panel-title">The whisper</div><div class="hint" id="status" aria-live="polite">ready</div></div><div class="output"><div class="empty" id="empty"><div><strong>Your next commit is hiding in the diff.</strong>Run the whisper to reveal a message, context, and review signal.</div></div><div class="result" id="result" aria-live="polite"><div class="result-label">Suggested commit</div><div class="commit" id="commit"></div><button id="copy" type="button">Copy commit message</button><div class="result-label">Release note</div><div class="result-text" id="release"></div><div class="result-label">Review signal</div><div class="result-text" id="review"></div><div class="result-label">Change map</div><div class="chips" id="chips"></div></div></div></div>
+      </section>
+    </main>
+    <footer class="footer"><span>Built for Hacktoberfest · Open Source AI</span><span>MIT · model-agnostic</span></footer>
+  </div>
+  <script>
+    const $ = id => document.getElementById(id);
+    const sampleDiff = 'diff --git a/src/auth.js b/src/auth.js\n- const user = await db.users.findOne({ email, password });\n+ const hash = await bcrypt.hash(password, 12);\n+ const user = await db.users.findOne({ email });\n+ const valid = await bcrypt.compare(password, user.passwordHash);';
+    const sample = { commit:'fix(auth): hash passwords before database lookup', release:'Authentication now hashes incoming passwords and compares them against stored hashes, preventing plaintext password lookups.', review:'Verify that existing records use the new passwordHash field and that bcrypt is included in the production dependency lockfile.', chips:['security','authentication','backend','breaking: data migration'] };
+    $('diff').value = sampleDiff;
+    $('model').addEventListener('change', () => { $('error').classList.remove('show'); $('diff-help').textContent = $('model').value === 'demo' ? 'Demo mode is instant and judge-ready. Local modes send the diff only to your Ollama model.' : `Local mode: your diff is sent to Ollama at localhost:11434 using ${$('model').value}.`; });
+    function showError(message) { $('error').textContent = message; $('error').classList.add('show'); $('status').textContent = 'needs attention'; }
+    async function getOllamaError(response) {
+      const body = await response.text();
+      let detail = body.trim();
+      try {
+        const parsed = JSON.parse(body);
+        if (parsed && typeof parsed.error === 'string') detail = parsed.error;
+      } catch (error) {
+        if (!(error instanceof SyntaxError)) throw error;
+      }
+      return detail ? `Ollama returned HTTP ${response.status}: ${detail}` : `Ollama returned HTTP ${response.status} with no error details.`;
+    }
+    function getOllamaHelp(error, modelName) {
+      const message = error.toLowerCase();
+      if (/not found|pull model|no such file/.test(message)) return `Download the selected model, then retry: ollama pull ${modelName}`;
+      if (/memory|ram|cuda|offload|allocat/.test(message)) return 'Ollama may not have enough memory to load this model. Close other memory-heavy apps, try a smaller model, or restart Ollama.';
+      if (/runner|starting|loading/.test(message)) return 'The model runner may have stopped while loading. Wait a moment, restart Ollama, then retry.';
+      return `Check that Ollama is running and the model is installed with “ollama list”. To install it, run: ollama pull ${modelName}`;
+    }
+    function demoAnalyze(diff) {
+      const added = diff.split('\n').filter(line => line.startsWith('+') && !line.startsWith('+++')).join(' ');
+      const removed = diff.split('\n').filter(line => line.startsWith('-') && !line.startsWith('---')).join(' ');
+      const text = `${added} ${removed}`.toLowerCase();
+      const security = /password|auth|token|permission|secret|bcrypt|encrypt/.test(text);
+      const ui = /button|color|css|style|component|layout|render|className/.test(text);
+      const test = /test|spec|assert|mock/.test(text);
+      const docs = /readme|documentation|comment|docs/.test(text);
+      const area = security ? 'security' : ui ? 'ui' : test ? 'tests' : docs ? 'docs' : 'code';
+      const verb = added && removed ? 'update' : added ? 'add' : 'change';
+      const summary = added.replace(/[{}();=]/g,' ').trim().slice(0,90) || 'project behavior';
+      return { commit:`${verb}(${area}): improve ${area} behavior`, release:`This change updates ${area} behavior based on the provided diff. The demo analyzer detected: ${summary}.`, review:security ? 'Review this change for security regressions, sensitive data handling, and compatibility with existing records.' : test ? 'Check that the updated behavior is covered by the relevant test suite.' : 'Review the changed lines for edge cases and confirm the new behavior matches the intended product flow.', chips:[area, added ? 'additions' : 'deletions', added && removed ? 'refactor' : 'behavior change'] };
+    }
+    function parseQwen(text) {
+      const lines = text.replace(/```[a-z]*|```/gi,'').split('\n').map(line=>line.trim()).filter(Boolean);
+      const value = label => { const line=lines.find(item=>item.toLowerCase().startsWith(`${label.toLowerCase()}:`)); return line ? line.slice(label.length+1).trim() : ''; };
+      return { commit:value('COMMIT') || 'chore: update code based on diff', release:value('RELEASE') || 'The local model analyzed the provided code change.', review:value('REVIEW') || 'Review the changed lines for edge cases and compatibility.', chips:(value('TAGS') || 'code, local AI, review').split(',').map(tag=>tag.trim()).filter(Boolean).slice(0,5) };
+    }
+    function render(data, source='demo') { $('error').classList.remove('show'); $('empty').style.display='none'; $('result').classList.add('show'); $('commit').textContent=data.commit; $('release').textContent=data.release; $('review').textContent=data.review; $('chips').innerHTML=data.chips.map(x=>`<span class="chip">${x}</span>`).join(''); $('status').textContent=source==='ollama'?'ollama · local':'demo · instant'; }
+    async function whisper() {
+      const button=$('generate'), diff=$('diff').value.trim();
+      if (!diff) { showError('Paste a git diff before whispering.'); $('diff').focus(); return; }
+      button.disabled=true; button.textContent='Listening…'; $('status').textContent='thinking'; $('error').classList.remove('show');
+      try {
+        if ($('model').value !== 'demo') {
+          const modelName = $('model').value;
+          const isQwen=modelName.startsWith('qwen');
+          const prompt=isQwen ? `Analyze this git diff. Return exactly four short lines, with no markdown and no extra text:\nCOMMIT: one conventional commit message\nRELEASE: one sentence for a user\nREVIEW: one review warning or verification step\nTAGS: three comma-separated tags\nDiff:\n${diff}` : `You are Commit Whisper. Analyze this git diff and return ONLY valid JSON with keys commit, release, review, chips (array of 3-5 short tags). Use a conventional commit. Diff:\n${diff}`;
+          const request={model:modelName,prompt,stream:false};
+          if (!isQwen) request.format='json';
+          const response=await fetch('http://localhost:11434/api/generate',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(request)});
+          if (!response.ok) {
+            const detail=await getOllamaError(response);
+            throw new Error(`${detail} ${getOllamaHelp(detail,modelName)}`);
+          }
+          const payload=await response.json();
+          if (typeof payload.response !== 'string' || !payload.response.trim()) throw new Error('Ollama returned an empty model response. Try again, or check the Ollama server logs.');
+          render(isQwen ? parseQwen(payload.response) : JSON.parse(payload.response),'ollama');
+        } else { await new Promise(resolve=>setTimeout(resolve,650)); render(diff === sampleDiff ? sample : demoAnalyze(diff)); }
+      } catch (error) {
+        const message=error instanceof TypeError
+          ? 'Cannot reach Ollama at http://localhost:11434. Start Ollama and check its browser access settings.'
+          : error.message || 'request failed';
+        showError(`Local AI error: ${message}`);
+        $('status').textContent='needs attention';
+      }
+      finally { button.disabled=false; button.textContent='✦ Whisper this diff'; }
+    }
+    $('generate').addEventListener('click', whisper);
+    $('diff').addEventListener('keydown', event => { if (event.ctrlKey && event.key === 'Enter') whisper(); });
+    $('copy').addEventListener('click', async () => { try { await navigator.clipboard.writeText($('commit').textContent); $('copy').textContent='Copied ✓'; setTimeout(()=>$('copy').textContent='Copy commit message',1400); } catch { showError('Clipboard access was blocked. Select the commit message and copy it manually.'); } });
+  </script>
+</body>
+</html>
